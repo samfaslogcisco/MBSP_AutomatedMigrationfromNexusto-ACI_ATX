@@ -1,0 +1,170 @@
+---
+- name: Access policies creation for L2 migration
+  hosts: Site2
+  connection: local
+  gather_facts: False
+
+  tasks:
+
+    - name: Take a snapshot before configuration changes
+      aci_config_snapshot:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: false
+        description: "Snapshot created using Ansible before L2 Migration"
+        export_policy: defaultOneTime
+
+    - name: Create Leaf Profile 
+      aci_switch_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_profile: LEAF201_LP
+        validate_certs: False
+        description: "Leaf profile created by Ansible"
+        state: query
+
+    - name: Bind leaf selectors to switch policy leaf profile
+      aci_switch_leaf_selector:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf: LEAF201_LS
+        leaf_node_blk: 201
+        from: 201
+        to: 201
+        leaf_profile: LEAF201_LP
+        validate_certs: False
+        state: query
+
+
+    - name: Add a new VLAN pool
+      aci_vlan_pool:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        pool: shramu-L2-Migration_VLAN
+        pool_allocation_mode: static
+        validate_certs: False
+        description: "created by Ansible"
+        state: present
+
+    - name: Add a new VLAN encap block
+      aci_vlan_pool_encap_block:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        pool: shramu-L2-Migration_VLAN
+        block_name: L2-Migration_VLANBlock
+        block_start: 2891
+        block_end: 2891
+        pool_allocation_mode: static
+        validate_certs: False
+        description: "created by Ansible"
+        state: present
+
+
+    - name: Add a new physical domain
+      aci_domain:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        domain: shramu-L2_PhyDom
+        domain_type: phys
+        validate_certs: False
+        state: present
+
+    - name: Bind a physical domain to VLAN pool
+      aci_domain_to_vlan_pool:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        domain: shramu-L2_PhyDom
+        domain_type: phys
+        pool: shramu-L2-Migration_VLAN
+        pool_allocation_mode: static
+        validate_certs: False
+        state: present
+
+
+    - name: Add a new AEP
+      aci_aep:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        aep: shramu-L2Mig_AEP
+        description: "Created by Ansible"
+        infra_vlan: false
+        validate_certs: False
+        state: present
+
+    - name: Add AEP to domain binding
+      aci_aep_to_domain:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        aep: shramu-L2Mig_AEP
+        domain: shramu-L2_PhyDom
+        domain_type: phys
+        validate_certs: False
+        state: present
+
+    - name: Create a Leaf Access Port Policy Group
+      aci_interface_policy_leaf_policy_group:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        lag_type: leaf
+        policy_group: shramu-L2Mig_IPG
+        aep: shramu-L2Mig_AEP
+        cdp_policy: CDP_ON
+        lldp_policy: LLDP_ON
+        validate_certs: False
+        state: present
+
+    - name: Add a new leaf_interface_profile
+      aci_interface_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_interface_profile: LEAF201_INT_PROF
+        description: "Interface profile created by Ansible"
+        validate_certs: False
+        state: query
+
+
+    - name: Associating an interface selector profile to a switch policy leaf profile
+      aci_interface_selector_to_switch_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_profile: LEAF201_LP
+        interface_selector: LEAF201_INT_PROF
+        validate_certs: False
+        state: query
+
+    - name: Associate an Interface Access Port Selector to an Interface Policy Leaf Profile with a Policy Group
+      aci_access_port_to_interface_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_interface_profile: LEAF201_INT_PROF
+        access_port_selector: ETH1-25
+        policy_group: shramu-L2Mig_IPG
+        validate_certs: False
+        state: present
+
+    - name: Associate an access port block (single port) to an interface selector
+      aci_access_port_block_to_access_port:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_interface_profile: LEAF201_INT_PROF
+        access_port_selector: ETH1-25
+        leaf_port_blk: ETH1-25
+        from_port: "25"
+        to_port: "25"
+        validate_certs: False
+        state: present

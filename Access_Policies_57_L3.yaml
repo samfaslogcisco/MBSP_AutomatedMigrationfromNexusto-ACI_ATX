@@ -1,0 +1,87 @@
+---
+- name: Access policies creation for L3
+  hosts: Site2
+  connection: local
+  gather_facts: False
+
+  tasks:
+
+    - name: Take a snapshot before configuration changes
+      aci_config_snapshot:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: false
+        description: "Snapshot created using Ansible before L3 Migration"
+        export_policy: defaultOneTime
+
+    - name: Create a L3 domain
+      aci_domain:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        domain: shramu-L3Dom
+        domain_type: l3dom
+        validate_certs: False
+        state: present
+
+    - name: Add a new AEP
+      aci_aep:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        aep: shramu-L3_AEP
+        description: "Created by Ansible"
+        infra_vlan: false
+        validate_certs: False
+        state: present
+
+    - name: Add AEP to L3 domain
+      aci_aep_to_domain:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        aep: shramu-L3_AEP
+        domain: shramu-L3Dom
+        domain_type: l3dom
+        validate_certs: False
+        state: present
+
+    - name: Create a Leaf Access Port Policy Group
+      aci_interface_policy_leaf_policy_group:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        lag_type: leaf
+        policy_group: shramu-L3_IPG
+        aep: shramu-L3_AEP
+        cdp_policy: CDP_ON
+        lldp_policy: LLDP_ON
+        validate_certs: False
+        state: present
+
+    - name: Associate an Interface Access Port Selector to an Interface Policy Leaf Profile with a Policy Group
+      aci_access_port_to_interface_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_interface_profile: LEAF202_INT_PROF
+        access_port_selector: ETH1-26
+        policy_group: shramu-L3_IPG
+        validate_certs: False
+        state: present
+
+
+    - name: Associate an access port block (single port) to an interface selector
+      aci_access_port_block_to_access_port:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_interface_profile: LEAF202_INT_PROF
+        access_port_selector: ETH1-26
+        leaf_port_blk: ETH1-26
+        from_port: "26"
+        to_port: "26"
+        validate_certs: False
+        state: present

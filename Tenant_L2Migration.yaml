@@ -1,0 +1,189 @@
+---
+- name: Tennant Networking and Application Profile Creation
+  hosts: Site2
+  connection: local
+  gather_facts: False
+
+  vars_prompt:
+    - name: "tenant"
+      prompt: "What would you like to name your Tenant?"
+      private: no
+
+  tasks:
+    - name: Create Tenant based on enduser input
+      aci_tenant:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: False
+        tenant: "{{ tenant }}"
+        description: "Tenant Created Using Ansible"
+
+    - name: Create VRF
+      aci_vrf:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: False
+        tenant: "{{ tenant }}"
+        vrf: "{{ tenant }}"
+        description: "VRF Created Using Ansible"
+
+    - name: Create BD with flood options
+      aci_bd:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        validate_certs: False
+        state: "present"
+        tenant: "{{ tenant }}"
+        bd: VLAN2891_BD
+        vrf: "{{ tenant }}"
+        arp_flooding: yes
+        enable_routing: no
+        ip_learning: no
+        l2_unknown_unicast: flood
+        l3_unknown_multicast: flood
+        description: "BD Created Using Ansible"
+
+    - name: Create AppProfile
+      aci_ap:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: false
+        tenant: "{{ tenant }}"
+        ap: Migrated_AppProf
+        descr: "App Profile Created Using Ansible"
+
+    - name: Create EPG
+      aci_epg:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: False
+        tenant: "{{ tenant }}"
+        ap: Migrated_AppProf
+        epg: VLAN2891_EPG
+        bd: VLAN2891_BD
+        description: "EPG Created Using Ansible"
+
+
+    - name: VMM domain association with EPG
+      aci_epg_to_domain:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: false
+        tenant: "{{ tenant }}"
+        ap: Migrated_AppProf
+        epg: VLAN2891_EPG
+        domain_type: "vmm"
+        encap: 2891
+        domain: Shared-DVS-Site2
+        deploy_immediacy: immediate
+        resolution_immediacy: immediate
+        vm_provider: "vmware"
+        encap_mode: vlan
+
+    - name: API changes to the associated domain
+      aci_rest:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        validate_certs: false
+        method: post
+        path: /api/node/mo/uni/tn-shramu-Migration/ap-Migrated_AppProf/epg-VLAN2891_EPG/rsdomAtt-[uni/vmmp-VMware/dom-Shared-DVS-Site2]/epglagpolatt.json
+        content: {"fvAEPgLagPolAtt":{"attributes":{"status":"created,modified"},"children":[{"fvRsVmmVSwitchEnhancedLagPol":{"attributes":{"tDn":"uni/vmmp-VMware/dom-Shared-DVS-Site2/vswitchpolcont/enlacplagp-Shared-ACI-vPC","status":"created,modified"},"children":[]}}]}}
+
+
+    - name: API changes to the associated domain
+      aci_rest:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        validate_certs: false
+        method: post
+        path: /api/node/mo/uni/tn-shramu-Migration/ap-Migrated_AppProf/epg-VLAN2891_EPG/rsdomAtt-[uni/vmmp-VMware/dom-Shared-DVS-Site2].json
+        content: "{\"fvRsDomAtt\":{\"attributes\":{\"dn\":\"uni/tn-shramu-Migration/ap-Migrated_AppProf/epg-VLAN2891_EPG/rsdomAtt-[uni/vmmp-VMware/dom-Shared-DVS-Site2]\",\"instrImedcy\":\"immediate\",\"resImedcy\":\"immediate\",\"classPref\":\"encap\",\"untagged\":\"false\",\"netflowPref\":\"disabled\",\"netflowDir\":\"both\",\"epgCosPref\":\"disabled\",\"epgCos\":\"Cos0\",\"primaryEncap\":\"\",\"encap\":\"vlan-2891\",\"bindingType\":\"staticBinding\",\"switchingMode\":\"native\",\"portAllocation\":\"elastic\",\"numPorts\":\"0\",\"customEpgName\":\"\",\"status\":\"modified\",\"encapMode\":\"vlan\"},\"children\":[{\"vmmSecP\":{\"attributes\":{\"dn\":\"uni/tn-shramu-Migration/ap-Migrated_AppProf/epg-VLAN2891_EPG/rsdomAtt-[uni/vmmp-VMware/dom-Shared-DVS-Site2]/sec\",\"allowPromiscuous\":\"reject\",\"forgedTransmits\":\"reject\",\"macChanges\":\"reject\",\"status\":\"created,modified\"},\"children\":[]}}]}}"
+
+    - name: ENSURE PHY DOMAIN IS BOUND TO EPG
+      aci_epg_to_domain:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: false
+        tenant: "{{ tenant }}"
+        ap: Migrated_AppProf
+        epg: VLAN2891_EPG
+        domain_type: "phys"
+        domain: shramu-L2_PhyDom 
+
+
+
+    - name: Static binding for L2 
+      aci_static_binding_to_epg:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        validate_certs: false
+        tenant: "{{ tenant }}"
+        ap: Migrated_AppProf
+        epg: VLAN2891_EPG
+        encap_id: 2891
+        deploy_immediacy: immediate
+        interface_mode: trunk
+        interface_type: switch_port
+        pod_id: 1
+        leafs: 201
+        interface: '1/25'
+        state: present
+
+
+
+- name: Perform Layer-2 Migration (VMware)
+  hosts: bglvcenter
+  connection: local
+  gather_facts: False
+
+  tasks:
+
+    - name: Change network adapter settings (port-group) of VM
+      vmware_guest:
+        hostname: "{{ inventory_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        datacenter: Site-2
+        validate_certs: false
+        name: shramu-test-Migration
+        networks:
+                -  name: "VM Network"
+
+
+    - name: Perform vMotion
+      vmware_vmotion:
+        hostname: "{{ inventory_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        vm_name: shramu-test-Migration
+        destination_host: "10.106.236.52"
+        destination_datastore: "datastore52_hdd"
+        validate_certs: false
+
+    - name: Change network adapter settings (port-group) of VM
+      vmware_guest:
+        hostname: "{{ inventory_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        datacenter: Site-2
+        validate_certs: false
+        name: shramu-test-Migration
+        networks:
+                -  name: "shramu-Migration|Migrated_AppProf|VLAN2891_EPG"
+

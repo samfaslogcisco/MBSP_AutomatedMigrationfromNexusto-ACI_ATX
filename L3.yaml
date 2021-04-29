@@ -1,0 +1,74 @@
+---
+- name: L3 Migration Configuration
+  hosts: Site2
+  connection: local
+  gather_facts: False
+
+  vars_prompt:
+    - name: "tenant"
+      prompt: "Please provide the tenant name?"
+      private: no
+  
+      
+  tasks:
+
+    - name: Contract creation 
+      aci_contract:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        description: "Created by Ansible"
+        validate_certs: false
+        tenant: "{{ tenant }}"
+        contract: L3Out-Contract
+        scope: context
+
+    - name: Subject creation
+      aci_contract_subject:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        description: "Created by Ansible"
+        contract: L3Out-Contract
+        subject: L3Out-AllowAll
+        tenant: "{{ tenant }}"
+        validate_certs: false
+
+        
+    - name: Associate Filter to Contract Subject
+      aci_contract_subject_to_filter:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: false
+        tenant: "{{ tenant }}"
+        contract: L3Out-Contract
+        subject: L3Out-AllowAll
+        filter: default
+
+    - name: Associate EPG with the contract
+      aci_epg_to_contract:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        state: "present"
+        validate_certs: false
+        tenant: "{{ tenant }}"
+        ap: Migrated_AppProf
+        epg: VLAN2891_EPG
+        contract: L3Out-Contract
+        contract_type: provider
+
+    - name: L3Out creation
+      aci_rest:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        validate_certs: false
+        method: post
+        path: /api/node/mo/uni/tn-shramu-Migration/out-shramu-L3Out.json
+        content: {"l3extOut":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out","name":"shramu-L3Out","rn":"out-shramu-L3Out","status":"created"},"children":[{"bgpExtP":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/bgpExtP","rn":"bgpExtP","status":"created"},"children":[]}},{"l3extInstP":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/instP-shramu_ExtEPG","name":"shramu_ExtEPG","rn":"instP-shramu_ExtEPG","status":"created"},"children":[{"l3extSubnet":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/instP-shramu_ExtEPG/extsubnet-[0.0.0.0/0]","ip":"0.0.0.0/0","status":"created","rn":"extsubnet-[0.0.0.0/0]"},"children":[]}},{"fvRsCons":{"attributes":{"tnVzBrCPName":"L3Out-Contract","status":"created,modified"},"children":[]}}]}},{"l3extLNodeP":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/lnodep-shramu-L3Out_nodeProfile","name":"shramu-L3Out_nodeProfile","status":"created","rn":"lnodep-shramu-L3Out_nodeProfile"},"children":[{"l3extLIfP":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/lnodep-shramu-L3Out_nodeProfile/lifp-shramu-L3Out_interfaceProfile","name":"shramu-L3Out_interfaceProfile","status":"created,modified","rn":"lifp-shramu-L3Out_interfaceProfile"},"children":[{"l3extRsPathL3OutAtt":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/lnodep-shramu-L3Out_nodeProfile/lifp-shramu-L3Out_interfaceProfile/rspathL3OutAtt-[topology/pod-1/paths-202/pathep-[eth1/26]]","tDn":"topology/pod-1/paths-202/pathep-[eth1/26]","addr":"10.0.0.1/30","ifInstT":"l3-port","status":"created","rn":"rspathL3OutAtt-[topology/pod-1/paths-202/pathep-[eth1/26]]"},"children":[{"bgpPeerP":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/lnodep-shramu-L3Out_nodeProfile/lifp-shramu-L3Out_interfaceProfile/rspathL3OutAtt-[topology/pod-1/paths-202/pathep-[eth1/26]]/peerP-[10.0.0.2]","addr":"10.0.0.2","status":"created"},"children":[{"bgpAsP":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/lnodep-shramu-L3Out_nodeProfile/lifp-shramu-L3Out_interfaceProfile/rspathL3OutAtt-[topology/pod-1/paths-202/pathep-[eth1/26]]/peerP-[10.0.0.2]/as","asn":"65200","status":"created"},"children":[]}}]}}]}}]}},{"bgpPeerP":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/lnodep-shramu-L3Out_nodeProfile/peerP-[9.9.9.9]","addr":"9.9.9.9","status":"created"},"children":[{"bgpAsP":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/lnodep-shramu-L3Out_nodeProfile/peerP-[9.9.9.9]/as","asn":"65200","status":"created"},"children":[]}}]}},{"l3extRsNodeL3OutAtt":{"attributes":{"dn":"uni/tn-shramu-Migration/out-shramu-L3Out/lnodep-shramu-L3Out_nodeProfile/rsnodeL3OutAtt-[topology/pod-1/node-202]","tDn":"topology/pod-1/node-202","rtrId":"3.3.3.3","rtrIdLoopBack":"false","status":"created","rn":"rsnodeL3OutAtt-[topology/pod-1/node-202]"},"children":[]}}]}},{"l3extRsEctx":{"attributes":{"tnFvCtxName":"shramu-Migration","status":"created,modified"},"children":[]}},{"l3extRsL3DomAtt":{"attributes":{"tDn":"uni/l3dom-shramu-L3Dom","status":"created"},"children":[]}}]}}
+

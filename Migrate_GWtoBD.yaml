@@ -1,0 +1,71 @@
+---
+- name: Moving gateway to ACI
+  hosts: Site2
+  connection: local
+  gather_facts: False
+
+  vars_prompt:
+    - name: "tenant"
+      prompt: "Please provide the tenant name?"
+      private: no
+
+
+  tasks:
+
+    - name: BD flood  modification for L3
+      aci_bd:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        validate_certs: False
+        state: "present"
+        tenant: "{{ tenant }}"
+        bd: VLAN2891_BD
+        vrf: "{{ tenant }}"
+        arp_flooding: no
+        l2_unknown_unicast: proxy
+        l3_unknown_multicast: opt-flood
+        enable_routing: yes
+        ip_learning: yes
+        description: "BD Created Using Ansible"
+
+
+    - name: BD gateway configuration
+      aci_bd_subnet:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        validate_certs: False
+        state: "present"
+        tenant: "{{ tenant }}"
+        bd: VLAN2891_BD
+        gateway: "4.5.6.1"
+        mask: "29"
+        scope: public
+
+    - name: BD L3Out Association
+      aci_bd_to_l3out:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        validate_certs: False
+        state: "present"
+        tenant: "{{ tenant }}"
+        bd: VLAN2891_BD
+        l3out: shramu-L3Out
+
+
+
+- name: Cutover of gateway on Nexus(NX-OS)
+  hosts: nxos
+  connection: local
+  gather_facts: False
+
+  tasks:
+    - name: command NXOS
+      nxos_command:
+        commands:
+          - command: conf t
+          - command: int vlan 2891
+          - command: shut
+      register: x
